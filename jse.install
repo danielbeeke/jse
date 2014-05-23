@@ -1,0 +1,93 @@
+<?php
+
+/**
+ * Implements hook_schema().
+ */
+function jse_schema() {
+  $schema = array();
+
+  $schema['jse_config'] = array(
+    'description' => 'The base table for JSON slimmed entites configs.',
+    'fields' => array(
+      'jseid' => array(
+        'description' => 'The primary identifier for the JSON slimmed entites config.',
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'label' => array(
+        'description' => 'The label of the JSON slimmed entites config.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'name' => array(
+        'description' => 'The machine name of the JSON slimmed entites config.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+
+      'referenced_entity_type' => array(
+        'description' => 'The referenced entity type of the JSON slimmed entites config.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+
+      'endpoint_path' => array(
+        'description' => 'The path of the JSON slimmed entites config.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+
+      'plural' => array(
+        'description' => 'The label under which to group these entities. Like trips for the node type Trip.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+
+      'view_mode' => array(
+        'description' => 'The view mode in which to display the entities.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+
+      'enabled_references' => array(
+        'description' => 'JSON slimmed entities relations that need to be loaded on display.',
+        'type' => 'text',
+      ),
+
+      'status' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        // Set the default to ENTITY_CUSTOM without using the constant as it is
+        // not safe to use it at this point.
+        'default' => 0x01,
+        'size' => 'tiny',
+        'description' => 'The exportable status of the entity.',
+      ),
+      'module' => array(
+        'description' => 'The name of the providing module if the entity has been defined in code.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => FALSE,
+      ),
+    ),
+    'primary key' => array('jseid'),
+    'unique keys' => array(
+      'name' => array('name'),
+    ),
+  );
+
+  return $schema;
+}

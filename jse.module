@@ -1,0 +1,196 @@
+<?php
+
+/**
+ * Implements hook_menu().
+ */
+function jse_menu() {
+
+  $jse_configs = entity_load('jse_config');
+  $items = array();
+
+  foreach ($jse_configs as $jse_config) {
+
+    $path_exploded = explode('/', $jse_config->endpoint_path);
+
+    foreach ($path_exploded as $delta => $part) {
+      if ($part == '%') {
+        $entity_id_path_delta = $delta;
+      }
+    }
+
+    $items[$jse_config->endpoint_path] = array(
+      'type' => MENU_CALLBACK,
+      'page callback' => 'jse_endpoint_callback',
+      'page arguments' => array($entity_id_path_delta, $jse_config->jseid),
+      'access callback' => TRUE,
+      'delivery callback' => 'jse_deliver'
+    );
+  }
+
+  return $items;
+}
+
+/**
+* Implements hook_entity_info_alter().
+*/
+function jse_entity_info_alter(&$entity_info) {
+  foreach ($entity_info as $entity_type => $entity_type__info) {
+    $entity_info[$entity_type]['view modes']['jse_json'] = array(
+      'label' => t('JSON'),
+      'custom settings' => TRUE,
+    );
+  }
+}
+
+/**
+* Implements hook_entity_info().
+*/
+function jse_entity_info() {
+  $return = array(
+    'jse_config' => array(
+      'label' => t('JSON slimmed entity config'),
+      'entity class' => 'jseConfig',
+      'controller class' => 'jseConfigController',
+      'access callback' => 'jse_access',
+      'base table' => 'jse_config',
+      'fieldable' => FALSE,
+      'exportable' => TRUE,
+      'entity keys' => array(
+        'id' => 'jseid',
+        'name' => 'name',
+      ),
+      'load hook' => 'jse_config_load',
+      'label callback' => 'entity_class_label',
+      'uri callback' => 'entity_class_uri',
+      'module' => 'jse',
+      'admin ui' => array(
+        'path' => 'admin/structure/jse',
+        'file' => 'jse.admin.inc',
+      ),
+    ),
+  );
+
+  return $return;
+}
+
+function jse_access() {
+  return TRUE;
+}
+
+function jse_exists() {
+  return FALSE;
+}
+
+/**
+* JSON slimmed entity class.
+*/
+class jseConfig extends Entity {
+  protected function defaultLabel() {
+    return $this->label;
+  }
+
+  protected function defaultUri() {
+    return array('path' => 'admin/structure/jse/manage/' . $this->identifier());
+  }
+}
+
+function jse_deliver($render_array) {
+  drupal_add_http_header('Content-Type', 'application/json');
+  echo json_encode($render_array, JSON_PRETTY_PRINT);
+}
+
+/**
+* JSON slimmed entity controller class.
+*/
+class jseConfigController extends EntityAPIControllerExportable {
+  public function create(array $values = array()) {
+    $values += array(
+      'label' => '',
+    );
+
+    return parent::create($values);
+  }
+}
+
+/**
+* The JSON slimmed entity callback.
+*/
+function jse_endpoint_callback($entity_id, $jse_config_id) {
+  $jse_config = entity_load_single('jse_config', $jse_config_id);
+  $entity_type = $jse_config->referenced_entity_type;
+  $entity = entity_load_single($entity_type, $entity_id);
+  $entity_info = entity_get_info($entity_type);
+
+  $response[$jse_config->plural] = jse_slimmed_render($entity_type, $entity, $jse_config->view_mode);
+
+  $enabled_references = json_decode($jse_config->enabled_references, TRUE);
+
+  foreach ($enabled_references as $field_name => $alias) {
+    $field_info = field_info_field($field_name);
+
+    // First from the entity to other entities (simple variant).
+    if (isset($entity->{$field_name})) {
+      $values = field_get_items($entity_type, $entity, $field_name);
+
+      switch ($field_info['type']) {
+        case 'entityreference':
+          foreach ($values as $value) {
+            $referenced_entity = entity_load_single($field_info['settings']['target_type'], $value['target_id']);
+            $response[$enabled_references[$field_name]] = jse_slimmed_render($field_info['settings']['target_type'], $referenced_entity, 'jse_json');
+          }
+
+          break;
+
+      }
+    }
+
+    // Now find all entities that reference this entity via this field.
+    $query = db_select('field_data_' . $field_name, 'f')
+    ->fields('f', array('entity_id'))
+    ->condition($field_name . '_target_id', $entity->{$entity_info['entity keys']['id']} ,'=')
+    ->condition('deleted', 0, '=');
+
+    $result = $query->execute();
+
+    while($referring_entity_id = $result->fetchField()) {
+      $referenced_entity = entity_load_single($field_info['settings']['target_type'], $referring_entity_id);
+      $response[$enabled_references[$field_name]] = jse_slimmed_render($field_info['settings']['target_type'], $referenced_entity, 'jse_json');
+    }
+  }
+
+  return $response;
+}
+
+/**
+* Renders an entity to a slimmed down version.
+*/
+function jse_slimmed_render($entity_type, $entity, $view_mode) {
+  $entities_prepared = entity_view($entity_type, array($entity), $view_mode);
+  $keys = array_keys($entities_prepared[$entity_type]);
+  $entity_prepared = $entities_prepared[$entity_type][$keys[0]];
+  $entity_info = entity_get_info($entity_type);
+  $bundle = $entity->{$entity_info['bundle keys']['bundle']};
+
+  $slimmed_entity = array();
+
+  if (module_exists('ds')) {
+    $ds_info = ds_get_field_settings($entity_type, $bundle, $view_mode);
+  }
+
+  unset($entity_prepared['links']);
+  foreach ($entity_prepared as $key => &$render_item) {
+    if (isset($ds_info[$key]['formatter_settings']['ft']['lb'])) {
+      $label = $ds_info[$key]['formatter_settings']['ft']['lb'];
+    }
+    else {
+      $label = $key;
+    }
+
+    if (substr($key, 0, 1) != '#') {
+      $render_item['#label_display'] = 'hidden';
+      $slimmed_entity[$keys[0]][$label] = render($render_item);
+    }
+  }
+
+  return $slimmed_entity;
+}

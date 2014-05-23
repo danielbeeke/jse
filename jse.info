@@ -1,0 +1,5 @@
+name = JSON slimmed entity
+description = "Provides a way to display entities and their relatives via JSON on an endpath."
+package = Entity
+core = 7.x
+dependencies[] = entity
