@@ -14,14 +14,18 @@ function jse_menu() {
 
     foreach ($path_exploded as $delta => $part) {
       if ($part == '%') {
-        $entity_id_path_delta = $delta;
+        $entity_id_or_wildcard = $delta;
       }
+    }
+
+    if (!isset($entity_id_or_wildcard)) {
+      $entity_id_or_wildcard = 'all';
     }
 
     $items[$jse_config->endpoint_path] = array(
       'type' => MENU_CALLBACK,
       'page callback' => 'jse_endpoint_callback',
-      'page arguments' => array($entity_id_path_delta, $jse_config->jseid),
+      'page arguments' => array($entity_id_or_wildcard, $jse_config->jseid),
       'access callback' => TRUE,
       'delivery callback' => 'jse_deliver'
     );
@@ -115,13 +119,38 @@ class jseConfigController extends EntityAPIControllerExportable {
 /**
 * The JSON slimmed entity callback.
 */
-function jse_endpoint_callback($entity_id, $jse_config_id) {
+function jse_endpoint_callback($entity_id_or_wildcard, $jse_config_id) {
+
   $jse_config = entity_load_single('jse_config', $jse_config_id);
   $entity_type = $jse_config->referenced_entity_type;
-  $entity = entity_load_single($entity_type, $entity_id);
+  $bundle = $jse_config->bundle;
   $entity_info = entity_get_info($entity_type);
 
-  $response[$jse_config->plural] = jse_slimmed_render($entity_type, $entity, $jse_config->view_mode);
+  $response = array();
+
+  if (isset($entity_id_or_wildcard) && $entity_id_or_wildcard != 'all') {
+    $entities = entity_load($entity_type, array($entity_id_or_wildcard), array(
+      $entity_info['bundle keys']['bundle'] => $bundle
+    ));
+  }
+  else {
+    $entities = entity_load($entity_type, FALSE, array(
+      $entity_info['bundle keys']['bundle'] => $bundle
+    ));
+  }
+
+  foreach ($entities as $entity_id => $entity) {
+    jse_add_entity_to_response($response, $entity, $jse_config, $entity_info, $entity_type);
+  }
+
+  return $response;
+}
+
+/**
+* Add's an entity to the JSON response.
+*/
+function jse_add_entity_to_response(&$response, $entity, $jse_config, $entity_info, $entity_type) {
+  $response[$jse_config->plural] = jse_slimmed_render($entity_type, $entity);
 
   $enabled_references = json_decode($jse_config->enabled_references, TRUE);
 
@@ -157,24 +186,27 @@ function jse_endpoint_callback($entity_id, $jse_config_id) {
       $response[$enabled_references[$field_name]] = jse_slimmed_render($field_info['settings']['target_type'], $referenced_entity, 'jse_json');
     }
   }
-
-  return $response;
 }
 
 /**
 * Renders an entity to a slimmed down version.
 */
-function jse_slimmed_render($entity_type, $entity, $view_mode) {
-  $entities_prepared = entity_view($entity_type, array($entity), $view_mode);
+function jse_slimmed_render($entity_type, $entity) {
+  $entities_prepared = entity_view($entity_type, array($entity), 'jse_json');
   $keys = array_keys($entities_prepared[$entity_type]);
   $entity_prepared = $entities_prepared[$entity_type][$keys[0]];
   $entity_info = entity_get_info($entity_type);
-  $bundle = $entity->{$entity_info['bundle keys']['bundle']};
+  if (isset($entity->{$entity_info['bundle keys']['bundle']})) {
+    $bundle = $entity->{$entity_info['bundle keys']['bundle']};
+  }
+  else {
+    return;
+  }
 
   $slimmed_entity = array();
 
   if (module_exists('ds')) {
-    $ds_info = ds_get_field_settings($entity_type, $bundle, $view_mode);
+    $ds_info = ds_get_field_settings($entity_type, $bundle, 'jse_json');
   }
 
   unset($entity_prepared['links']);

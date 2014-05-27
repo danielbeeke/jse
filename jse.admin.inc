@@ -33,24 +33,25 @@ function jse_config_form($form, &$form_state, $jse_config, $op = 'edit') {
 
   $entity_info = entity_get_info();
   $entity_types = array();
+  $entity_types_and_bundles = array();
 
   foreach ($entity_info as $entity_type => $entity_type_info) {
     if (isset($entity_type_info['fieldable']) && $entity_type_info['fieldable'] == TRUE) {
 
-      foreach ($entity_type_info['view modes'] as $view_mode => $view_mode_info) {
-        $entity_types_and_view_modes[$entity_type_info['label']][$entity_type . '|' . $view_mode] = $view_mode_info['label'];
+      foreach ($entity_type_info['bundles'] as $bundle_key => $bundle_info) {
+        $entity_types_and_bundles[$entity_type_info['label']][$entity_type . '|' . $bundle_key] = $bundle_info['label'];
       }
     }
   };
 
-  if (isset($jse_config->referenced_entity_type) && $jse_config->view_mode) {
-    $default_value = $jse_config->referenced_entity_type . '|' . $jse_config->view_mode;
+  if (isset($jse_config->referenced_entity_type) && $jse_config->bundle) {
+    $default_value = $jse_config->referenced_entity_type . '|' . $jse_config->bundle;
   }
 
-  $form['referenced_entity_type_and_view_mode'] = array(
+  $form['referenced_entity_type_and_bundle'] = array(
     '#title' => t('Entity type to load and view mode to display'),
     '#type' => 'select',
-    '#options' => $entity_types_and_view_modes,
+    '#options' => $entity_types_and_bundles,
     '#default_value' => isset($default_value) ? $default_value : '',
   );
 
@@ -103,9 +104,9 @@ function jse_config_form($form, &$form_state, $jse_config, $op = 'edit') {
 * Form API submit callback for the JSON slimmed entity form.
 */
 function jse_config_form_submit(&$form, &$form_state) {
-  $combined_value_exploded = explode('|', $form_state['values']['referenced_entity_type_and_view_mode']);
+  $combined_value_exploded = explode('|', $form_state['values']['referenced_entity_type_and_bundle']);
   $form_state['values']['referenced_entity_type'] = $combined_value_exploded[0];
-  $form_state['values']['view_mode'] = $combined_value_exploded[1];
+  $form_state['values']['bundle'] = $combined_value_exploded[1];
   $references = array();
 
   foreach($form_state['values'] as $form_item_key => $value) {

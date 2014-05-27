@@ -54,8 +54,8 @@ function jse_schema() {
         'default' => '',
       ),
 
-      'view_mode' => array(
-        'description' => 'The view mode in which to display the entities.',
+      'bundle' => array(
+        'description' => 'The entity bundle.',
         'type' => 'varchar',
         'length' => 255,
         'not null' => TRUE,
