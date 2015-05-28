@@ -6,6 +6,9 @@
 function jse_schema() {
   $schema = array();
 
+  $schema['cache_jse'] = drupal_get_schema_unprocessed('system', 'cache');
+  $schema['cache_jse']['description'] = 'Cache table for jse to store client-side caching hashes.';
+
   $schema['jse_config'] = array(
     'description' => 'The base table for JSON slimmed entites configs.',
     'fields' => array(
@@ -30,8 +33,8 @@ function jse_schema() {
         'default' => '',
       ),
 
-      'referenced_entity_type' => array(
-        'description' => 'The referenced entity type of the JSON slimmed entites config.',
+      'callback' => array(
+        'description' => 'The referenced callback of the JSON slimmed entites config.',
         'type' => 'varchar',
         'length' => 255,
         'not null' => TRUE,
@@ -52,19 +55,6 @@ function jse_schema() {
         'length' => 255,
         'not null' => TRUE,
         'default' => '',
-      ),
-
-      'bundle' => array(
-        'description' => 'The entity bundle.',
-        'type' => 'varchar',
-        'length' => 255,
-        'not null' => TRUE,
-        'default' => '',
-      ),
-
-      'enabled_references' => array(
-        'description' => 'JSON slimmed entities relations that need to be loaded on display.',
-        'type' => 'text',
       ),
 
       'status' => array(
